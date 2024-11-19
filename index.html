@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pencil Sketch(Sobel) Effect</title>
+    <style>
+      :root {
+        --l1: #3a3d44;
+        --l2: #3b3e45;
+        --l3: #383b42;
+        --c1: #F0EAD6;
+        --c2:  #F5F5DC;
+      }
+      *,
+      *:before,
+      *:after {
+        box-sizing: border-box;
+        transition: all 0s ease 0s;
+        font-family: 'Gochi Hand', Arial, serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        /* width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center; */
+        /* background: linear-gradient(135deg, var(--l1), var(--l2), var(--l3)); */
+        background-color: #fff;
+      }
+
+      body:before,
+      body:after {
+        content: '';
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        /* background: repeating-conic-gradient(
+            #0002 0.000095%,
+            #fff0 0.0005%,
+            #fff0 0.005%,
+            #fff0 0.0005%
+          ),
+          repeating-conic-gradient(
+            #0002 0.00001%,
+            #fff0 0.00009%,
+            #fff0 0.00075%,
+            #fff0 0.000025%
+          ); */
+          background: repeating-conic-gradient(
+            #F0EAD6 0.000095%,
+            #F5F5DC 0.0005%,
+            #F5F5DC 0.005%,
+            #F5F5DC 0.0005%
+          ),
+          repeating-conic-gradient(
+            #F0EAD6 0.00001%,
+            #F5F5DC 0.00009%,
+            #F5F5DC 0.00075%,
+            #F5F5DC 0.000025%
+          );
+        opacity: 0.75;
+        filter: blur(0.75px);
+        z-index: -1;
+      }
+      div[id^='img_'] {
+        position: relative;
+        /* width: 480px;
+        min-height: 360px; */
+      }
+      /* div[id^='img_'] img {
+        width: 100%;
+        height: auto;
+      }
+      div[id^='img_'] img {
+        object-fit: cover;
+      } */
+      .preloader {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: url('preloader3.svg') center center no-repeat;
+        background-size: auto;
+      }
+
+      .showpreloader {
+        background-color: #d9d9d9;
+      }
+      .hidepreloader {
+        background-color: revert;
+      }
+
+      .showpreloader > *:not(.preloader) {
+        /* display: none; */
+        visibility: hidden;
+      }
+      .showpreloader .preloader {
+        /* display: revert; */
+        visibility: visible;
+      }
+
+      .hidepreloader > *:not(.preloader) {
+        /* display: revert; */
+        visibility: visible;
+      }
+      .hidepreloader .preloader {
+        /* display: none; */
+        visibility: hidden;
+      }
+      
+      input[type='file'] {
+        width: 350px;
+        max-width: 100%;
+        color: #444;
+        padding: 5px;
+        background: #fff;
+        border-radius: 10px;
+        border: 1px solid #555;
+      }
+
+      input[type='file']::file-selector-button {
+        margin-right: 20px;
+        border: none;
+        background: #084cdf;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.2s ease-in-out;
+      }
+
+      input[type='file']::file-selector-button:hover {
+        background: #0d45a5;
+      }
+
+      .grid-container {
+        display: grid;
+        grid-template-columns: repeat(
+          auto-fit,
+          minmax(calc(25% - 10px), 0.3fr)
+        ); /* 4 columns */
+        gap: 10px; /* Adjust gap as needed */
+        justify-items: center;
+      }
+
+      .grid-item {
+        display: flex;
+        background-color: #ffffff08;
+        justify-content: flex-start;
+        border: 1px dashed #595b5e;
+        align-content: center;
+        flex-direction: column;
+        align-items: center;
+        max-width: calc(100% - 20px);
+        /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
+        box-shadow: rgba(9, 30, 66, 0.25) 0px 4px 8px -2px, rgba(9, 30, 66, 0.08) 0px 0px 0px 1px;
+      }
+
+      .grid-item img {
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <input type="file" id="fileInput" accept="image/*" multiple />
+    <div id="image-container" class="grid-container">
+      <!-- <div id="img_xtbs63umq" class="grid-item">
+        <div class="sliderContainer"></div>
+        <div class="sliderContainer"></div>
+        <img src="" alt="" />
+      </div> -->
+    </div>
+
+    <script>
+     
+      const fileInput = document.getElementById('fileInput')
+      const imageContainer = document.getElementById('image-container')
+
+      function downloadCanvas(imgTag) {
+        let canvas = document.createElement('canvas')
+        let ctx = canvas.getContext('2d')
+        let type = imgTag.parentElement.querySelector('select').value.trim()
+        canvas.width = imgTag.naturalWidth
+        canvas.height = imgTag.naturalHeight
+        ctx.imageSmoothingEnabled = true
+        ctx.drawImage(imgTag, 0, 0, canvas.width, canvas.height)
+        let dataURL = canvas.toDataURL('image/' + type)
+        let link = document.createElement('a')
+        link.href = dataURL
+        link.download = 'canvas_image.' + type
+        link.click()
+      }
+
+      // Function to generate a random ID
+      function generateRandomId() {
+        return 'img_' + Math.random().toString(36).substr(2, 9)
+      }
+
+      function preloader(id, status) {
+        let div = document.getElementById(id)
+        if (status == 'show') {
+          div.classList.remove('hidepreloader')
+          div.classList.add('showpreloader')
+        } else {
+          div.classList.remove('showpreloader')
+          div.classList.add('hidepreloader')
+        }
+      }
+
+      function imageReader(file) {
+        const reader = new FileReader()
+        let image = new Image()
+        let canvas = document.createElement(`canvas`)
+        let ctx = canvas.getContext('2d')
+        let divId = generateRandomId()
+        imageContainer.appendChild(makeTemplate(divId))
+        reader.onload = function (e) {
+          let objectUrl = URL.createObjectURL(file)
+          image.onload = function () {
+            URL.revokeObjectURL(objectUrl)
+            canvas.width = image.naturalWidth
+            canvas.height = image.naturalHeight
+            ctx.drawImage(image, 0, 0)
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            )
+            sendMsg({
+              cmd: `sobelEdgeDetection`,
+              param: [imageData, 3],
+              callback: { fn: `appendImg`, bind: divId }
+            })
+          }
+          //image.src = e.target.result
+          image.src = objectUrl // input image
+        }
+        reader.readAsDataURL(file)
+      }
+
+      function makeTemplate(id) {
+        let div = document.createElement(`div`)
+        div.id = id
+        div.classList.add("showpreloader", "grid-item")
+        let template = `
+        <img alt="Selected Imaged" />
+        <div class="sliderContainer">
+          <span>brightness</span>
+          <input type="range" fake-id="brightness" class="slider" min="-100" max="100" value="0" />
+          <span fake-id="brightnessDisplay" class="sliderDisplay">0</span>
+        </div>
+        <div class="sliderContainer">
+          <span>contrast</span>
+          <input type="range" fake-id="contrast" class="slider" min="-100" max="100" value="0" />
+          <span fake-id="contrastDisplay" class="sliderDisplay">0</span>
+        </div>
+        <div>
+          <select>
+            <option value="png" selected>PNG</option>
+            <option value="jpeg">JPEG</option>
+          </select>
+          <button>download</button>
+        </div>
+        <div class="preloader"></div>
+        `
+        div.innerHTML = template.trim()
+        return div
+      }
+
+      function appendImg(src) {
+        // let div = document.createElement(`div`)
+        // div.id = generateRandomId()
+        // let inner = `
+        // <div class="sliderContainer">
+        //   <span>brightness</span>
+        //   <input type="range" fake-id="brightness" class="slider" min="-100" max="100" value="0" />
+        //   <span fake-id="brightnessDisplay" class="sliderDisplay">0</span>
+        // </div>
+        // <div class="sliderContainer">
+        //   <span>contrast</span>
+        //   <input type="range" fake-id="contrast" class="slider" min="-100" max="100" value="0" />
+        //   <span fake-id="contrastDisplay" class="sliderDisplay">0</span>
+        // </div>
+        // <!--<button>apply</button>-->
+        // <img alt="Selected Imaged" />
+        // `
+        // div.innerHTML = inner.trim()
+
+        let div = imageContainer.querySelector(`#${this}`)
+        // div.style.height = 'auto';
+
+        let brightnessSlider = div.querySelector('input[fake-id="brightness"]')
+        let contrastSlider = div.querySelector('input[fake-id="contrast"]')
+        let downloadButton = div.querySelector('button')
+        let brightnessDisplay = div.querySelector(
+          'span[fake-id="brightnessDisplay"]'
+        )
+        let contrastDisplay = div.querySelector(
+          'span[fake-id="contrastDisplay"]'
+        )
+        let img = div.querySelector('img')
+        img.onload = function () {
+          preloader(img.parentElement.id, 'hide')
+          URL.revokeObjectURL(this.src)
+          let canvas = document.createElement(`canvas`)
+          let ctx = canvas.getContext('2d')
+          canvas.width = this.naturalWidth
+          canvas.height = this.naturalHeight
+          ctx.drawImage(this, 0, 0, canvas.width, canvas.height)
+          let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+
+          brightnessSlider.addEventListener('input', () => {
+            const brightness = parseInt(brightnessSlider.value)
+            brightnessDisplay.textContent = brightness
+            sendMsg({
+              cmd: 'adjustBrightnessAndContrast',
+              param: [imageData, brightness, parseInt(contrastSlider.value)],
+              callback: { fn: `update`, bind: ['#' + this.parentElement.id] }
+            })
+            preloader(img.parentElement.id, 'show')
+          })
+          contrastSlider.addEventListener('input', () => {
+            const contrast = parseInt(contrastSlider.value)
+            contrastDisplay.textContent = contrast
+            sendMsg({
+              cmd: 'adjustBrightnessAndContrast',
+              param: [imageData, parseInt(brightnessSlider.value), contrast],
+              callback: { fn: `update`, bind: ['#' + this.parentElement.id] }
+            })
+            preloader(this.parentElement.id, 'show')
+          })
+          downloadButton.addEventListener('click', () => {
+            downloadCanvas(this)
+          })
+
+          //imageContainer.appendChild(div)
+          this.onload = function () {
+            preloader(this.parentElement.id, 'hide')
+            if (this.src) {
+              //console.log(`image updated`)
+              URL.revokeObjectURL(this.src) // make image unavailable
+              //test(this) // but u can draw on canvas
+            }
+          }
+        }
+        src.toBlob(function (blob) {
+          img.src = URL.createObjectURL(blob)
+        }, 'image/png')
+        //img.src = src.toDataURL() // sobel canvas sketch image
+      }
+
+      function makecanvas(imageData) {
+        let canvas = document.createElement(`canvas`)
+        canvas.width = imageData.width
+        canvas.height = imageData.height
+        let ctx = canvas.getContext('2d')
+        ctx.putImageData(imageData, 0, 0)
+        return canvas
+      }
+
+      function update(canvas) {
+        //console.log(this)
+        let img = document.querySelector(`${this[0]} img`)
+        //console.log(img)
+        canvas.toBlob(function (blob) {
+          img.src = URL.createObjectURL(blob)
+        }, 'image/png')
+      }
+
+      function initWorker() {
+        console.log(`init worker`)
+        const port = new SharedWorker('./sobel_worker.js').port
+        port.addEventListener('message', receiveMsg, false)
+        port.addEventListener('error', workerError, false)
+        sendMsg = sendMsg.bind(port)
+        port.start()
+      }
+      function workerError(error) {
+        console.error('Error in shared worker:', error)
+      }
+      function receiveMsg(event) {
+        //console.log(event)
+        let data = event.data
+        let canvas = makecanvas(...data.param)
+        window[data.callback.fn].apply(data.callback.bind, [canvas])
+      }
+      function sendMsg(message) {
+        this.postMessage(message)
+      }
+
+      if (typeof SharedWorker !== 'undefined') {
+        initWorker()
+      } else {
+        console.log('Shared workers are not supported in this browser.')
+      }
+
+      fileInput.addEventListener('change', function (event) {
+        const files = [...event.target.files]
+        if (files.length) {
+          files.forEach(imageReader)
+        }
+      })
+    </script>
+  </body>
+</html>
