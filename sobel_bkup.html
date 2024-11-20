@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pencil Sketch(Sobel) Effect</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      #image-container {
+        /* width: 480px; /* Replace with your desired width & update default-w:h attribute */
+        /*height: 360px; Replace with your desired height */
+        /*overflow: hidden;*/
+      }
+
+      #image-container img {
+        width: 480px;
+        height: auto;
+        object-fit: cover;
+      }
+    </style>
+  </head>
+  <body>
+    <input type="file" id="fileInput" accept="image/*" multiple />
+    <div default-w:h="480*360" id="image-container"></div>
+    <script src="./sobel.js"></script>
+    <script>
+      const imageContainer = document.getElementById('image-container')
+      
+      function test(im){
+        let canvas = document.createElement(`canvas`);
+        canvas.width = im.width
+        canvas.height = im.height
+        let ctx = canvas.getContext('2d')
+        ctx.drawImage(im, 0, 0, canvas.width, canvas.height)
+        document.body.append(canvas)
+      }
+
+      function appendImg(src) {
+        let div = document.createElement(`div`)
+        let inner = `
+        <div class="sliderContainer">
+          <span>brightness</span>
+          <input type="range" fake-id="brightness" class="slider" min="-100" max="100" value="0" />
+          <span fake-id="brightnessDisplay" class="sliderDisplay">0</span>
+        </div>
+        <div class="sliderContainer">
+          <span>contrast</span>
+          <input type="range" fake-id="contrast" class="slider" min="-100" max="100" value="0" />
+          <span fake-id="contrastDisplay" class="sliderDisplay">0</span>
+        </div>
+        <!--<button>apply</button>-->
+        <img alt="Selected Imaged" />
+        `;
+        div.innerHTML = inner.trim();
+        let brightnessSlider =  div.querySelector('input[fake-id="brightness"]');
+        let contrastSlider = div.querySelector('input[fake-id="contrast"]')
+        let brightnessDisplay = div.querySelector('span[fake-id="brightnessDisplay"]')
+        let contrastDisplay = div.querySelector('span[fake-id="contrastDisplay"]')
+        let button = div.querySelector('button')
+        let img = div.querySelector('img');
+        img.onload = function () {
+          function update(data){
+            ctx.putImageData(data, 0, 0)
+            //img.src = canvas.toDataURL()
+            canvas.toBlob(function(blob) {
+              let bloburl = URL.createObjectURL(blob);
+              img.src = bloburl
+              //URL.revokeObjectURL(bloburl)
+            }, 'image/png');
+          }
+          let canvas = document.createElement(`canvas`)
+          let ctx = canvas.getContext('2d')
+          canvas.width = this.width
+          canvas.height = this.height
+          ctx.clearRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(this, 0, 0, canvas.width, canvas.height)
+          let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+
+          brightnessSlider.addEventListener('input', () => {
+            const brightness = parseInt(brightnessSlider.value)
+            brightnessDisplay.textContent = brightness
+            let data = adjustBrightnessAndContrast2(imageData, brightness, parseInt(contrastSlider.value))
+            update(data)
+          })
+          contrastSlider.addEventListener('input', () => {
+            const contrast = parseInt(contrastSlider.value)
+            contrastDisplay.textContent = contrast
+            let data = adjustBrightnessAndContrast2(imageData, parseInt(brightnessSlider.value), contrast)
+            update(data)
+          })
+          // button.addEventListener('click', () => {
+          //   const brightness = parseInt(brightnessSlider.value)
+          //   const contrast = parseInt(contrastSlider.value)
+          //   contrastDisplay.textContent = contrast
+          //   brightnessDisplay.textContent = brightness
+          //   let data = adjustBrightnessAndContrast2(imageData, brightness, contrast)
+          //   update(data)
+          // })
+          imageContainer.appendChild(div)
+          this.onload = function(){
+            if(this.src){
+              URL.revokeObjectURL(this.src) // make image unavailable
+              //test(this) // but u can draw on canvas 
+            }
+          }
+        }
+        img.src = src; // sobel sketch original image
+      }
+      
+      function sobelEdgeDetection(imageData, sigma) {
+        const grayImageData = grayscale(imageData)
+        const blurredImageData = gaussianBlur(grayImageData, sigma)
+        const edges = sobelOperator(blurredImageData)
+        return invert(edges)
+      }
+
+      function imageReader(file) {
+        const reader = new FileReader()
+        let image = new Image()
+        let canvas = document.createElement(`canvas`);
+        let ctx = canvas.getContext('2d')
+        reader.onload = function (e) {
+          let objectUrl = URL.createObjectURL(file);
+          image.onload = function () {
+            URL.revokeObjectURL(objectUrl)
+            canvas.width = image.width
+            canvas.height = image.height
+            ctx.drawImage(image, 0, 0)
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const finalEdges = sobelEdgeDetection(imageData, 3)
+            const outputImageData = new ImageData(finalEdges, imageData.width, imageData.height)
+            ctx.putImageData(outputImageData, 0, 0)
+            appendImg(canvas.toDataURL())
+          }
+          //image.src = e.target.result
+          image.src = objectUrl // input image 
+        }
+        reader.readAsDataURL(file)
+      }
+
+      // Handle file input change
+      document.getElementById('fileInput').addEventListener('change', function (event) {
+          const files = [...event.target.files]
+          if (files.length) {
+            files.forEach(imageReader)
+          }
+        })
+    </script>
+  </body>
+</html>
